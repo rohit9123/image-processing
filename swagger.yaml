@@ -1,0 +1,111 @@
+openapi: 3.0.0
+info:
+  title: Image Processing API
+  description: System for processing product images from CSV files
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+
+tags:
+  - name: File Upload
+    description: CSV file submission endpoints
+  - name: Status
+    description: Processing status checking
+
+paths:
+  /upload:
+    post:
+      tags: [File Upload]
+      summary: Submit CSV for processing
+      description: Accepts CSV file with product image URLs
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                csv:
+                  type: string
+                  format: binary
+                  description: CSV file with product data
+                webhookUrl:
+                  type: string
+                  format: uri
+                  description: Optional webhook URL for completion notification
+      responses:
+        200:
+          description: CSV accepted for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                    example: "650d1f9d7b1f9a7d9a7b1f9a"
+        400:
+          description: Invalid CSV format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Missing required CSV file"
+
+  /status/{requestId}:
+    get:
+      tags: [Status]
+      summary: Check processing status
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "650d1f9d7b1f9a7d9a7b1f9a"
+      responses:
+        200:
+          description: Current processing status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+                    example: PROCESSING
+                  processedProducts:
+                    type: integer
+                    example: 5
+                  totalProducts:
+                    type: integer
+                    example: 10
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+        404:
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Request not found"
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

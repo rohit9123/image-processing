@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_HOST=redis
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
+    volumes:
+      - ./gcp-key.json:/app/config/gcp-key.json
+      - outputs:/app/outputs
+    networks:
+      - app-network
+
+  worker:
+    build: .
+    restart: always
+    command: node --experimental-specifier-resolution=node workers/imageProcessor.js
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_HOST=redis
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
+    volumes:
+      - ./gcp-key.json:/app/config/gcp-key.json
+      - outputs:/app/outputs
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+volumes:
+  outputs:
+
+networks:
+  app-network:
+    driver: bridge
