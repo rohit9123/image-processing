@@ -1,84 +1,95 @@
 import { Worker } from 'bullmq';
-import connectDB from '../config/db.js';
+import { Redis } from 'ioredis';
+import axios from 'axios';  // ✅ Added missing import
 import ProcessingRequest from '../models/ProcessingRequest.js';
-import { redisConnection } from '../config/queue.js';
 import { processImage } from '../services/imageService.js';
+import { redisConnection } from '../config/queue.js';
+import connectDB from '../config/db.js';
 
-// Initialize database connection
 await connectDB();
 
-const worker = new Worker('image-processing', async (job) => {
+const worker = new Worker('image-processing', async job => {
   const { requestId } = job.data;
-  
+
   try {
-    const request = await ProcessingRequest.findById(requestId)
-      .maxTimeMS(30000)
-      .lean();
+    const request = await ProcessingRequest.findById(requestId);
+    if (!request) throw new Error(`Request ${requestId} not found`);
 
-    if (!request) {
-      throw new Error(`Request ${requestId} not found`);
-    }
+    // Update status to PROCESSING
+    request.status = 'PROCESSING';
+    await request.save();
 
-    // Process each product
+    let processedCount = 0;
+
+    // Process each product's images
     for (const product of request.products) {
       try {
         product.outputUrls = [];
-        let successCount = 0;
 
-        // Process each image
         for (const [index, url] of product.inputUrls.entries()) {
           try {
             const outputUrl = await processImage(url, requestId);
             product.outputUrls[index] = outputUrl;
-            successCount++;
-          } catch (error) {
-            console.error(`Failed to process image ${index} for product ${product.serialNumber}`);
-            product.outputUrls[index] = null;
+          } catch (imgError) {
+            console.error(`❌ Error processing image ${url} for product ${product.serialNumber}:`, imgError);
           }
         }
 
-        // Update product status
-        product.status = successCount === product.inputUrls.length 
-          ? 'PROCESSED'
-          : successCount > 0 
-            ? 'PARTIALLY_PROCESSED' 
-            : 'FAILED';
+        product.status = product.outputUrls.length > 0 ? 'PROCESSED' : 'FAILED';
+        if (product.status === 'PROCESSED') processedCount++;
 
-      } catch (error) {
+      } catch (productError) {
         product.status = 'FAILED';
+        console.error(`❌ Product ${product.serialNumber} processing failed:`, productError);
       }
     }
 
-    // Save updates
-    await ProcessingRequest.updateOne(
-      { _id: requestId },
-      { 
-        status: 'COMPLETED',
-        products: request.products,
-        completedAt: new Date()
+    // Finalize request
+    request.status = processedCount > 0 ? 'COMPLETED' : 'FAILED';
+    await request.save();
+
+    // Trigger webhook if configured
+    if (request.webhookUrl) {
+      try {
+        await axios.post(request.webhookUrl, {
+          requestId,
+          status: request.status,
+          completedAt: new Date().toISOString(),
+          processedCount
+        });
+      } catch (webhookError) {
+        console.error(`❌ Webhook failed for request ${requestId}:`, webhookError);
       }
-    );
+    }
+
+    return { success: true };
 
   } catch (error) {
-    console.error(`Job ${job.id} failed:`, error);
+    console.error(`❌ Processing failed for request ${requestId}:`, error);
     await ProcessingRequest.updateOne(
       { _id: requestId },
-      { 
-        status: 'FAILED',
-        error: error.message,
-        failedAt: new Date()
-      }
+      { status: 'FAILED', error: error.message }
     );
     throw error;
   }
 }, {
   connection: redisConnection,
-  concurrency: 3,
-  autorun: false
+  concurrency: 2,
+  limiter: { max: 5, duration: 1000 }
 });
 
-// Start worker after DB connection
-mongoose.connection.on('connected', () => {
-  worker.run();
-  console.log('🔵 Worker started');
+// Worker event listeners
+worker.on('completed', job => {
+  console.log(`✅ Job ${job.id} completed for request ${job.data.requestId}`);
+});
+
+worker.on('failed', (job, err) => {
+  console.error(`❌ Job ${job?.id} failed:`, err);
+});
+
+// Handle shutdown gracefully
+process.on('SIGTERM', async () => {
+  console.log('⚠️ Shutting down worker...');
+  await worker.close();
+  await redisConnection.quit();
 });
