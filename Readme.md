@@ -1,112 +1,132 @@
-# Image Processing Pipeline
+# Image Processing System - README
 
 ## Overview
-This project provides an image processing pipeline where users can upload a CSV file containing product details and image URLs. The images are processed using Sharp and stored in Google Cloud Storage. Webhooks notify users about the processing status, with automatic retry mechanisms for failures.
+The Image Processing System is a scalable service that processes image URLs, generates optimized output images, and triggers webhooks upon completion. It supports retry mechanisms for failed webhooks and allows users to check request statuses and download results in CSV format.
 
 ## Features
-- Upload CSV files with product details and image URLs.
-- Process images using Sharp (resize, optimize, and convert to JPEG).
-- Store processed images in Google Cloud Storage.
-- Use Redis-based rate limiting for API protection.
-- Implement webhook notifications with a retry mechanism.
-- Queue-based processing with BullMQ.
+- **Upload Image Processing Requests** via API
+- **Queue-Based Processing** using BullMQ
+- **Webhook Support** for notifications
+- **Retry Mechanism** for failed webhooks
+- **Status Tracking** for processing requests
+- **CSV Report Generation**
 
 ## Tech Stack
-- **Backend:** Node.js, Express.js
+- **Backend:** Node.js, Express
 - **Database:** MongoDB
 - **Queue System:** BullMQ (Redis)
-- **Cloud Storage:** Google Cloud Storage
-- **Image Processing:** Sharp
-- **Rate Limiting:** Redis
-- **Webhooks:** Axios
-
-## Installation
-
-### Prerequisites
-- Node.js & npm
-- Redis
-- MongoDB
-- Google Cloud Storage Bucket
-
-### Setup
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-repo/image-processing.git
-   cd image-processing
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Configure environment variables:
-   Create a `.env` file in the root directory and set the following:
-   ```env
-   PORT=5000
-   MONGO_URI=mongodb://localhost:27017/image-processing
-   REDIS_HOST=127.0.0.1
-   REDIS_PORT=6379
-   GCP_PROJECT_ID=your-gcp-project-id
-   GOOGLE_APPLICATION_CREDENTIALS=path-to-gcp-key.json
-   GCP_BUCKET_NAME=your-gcp-bucket-name
-   ```
-4. Start Redis and MongoDB services.
-5. Run the server:
-   ```bash
-   npm start
-   ```
+- **Cloud Storage:** AWS S3 / GCP Cloud Storage
+- **Worker Processing:** BullMQ Workers
+- **Logging & Monitoring:** Winston / Bunyan
 
 ## API Endpoints
-
-### 1. Upload CSV
-```http
-POST /api/upload
-```
-- **Description:** Uploads a CSV file and starts image processing.
-- **Request:**
-  - `multipart/form-data` with `csv` file.
-  - `webhookUrl` (optional) for status updates.
-- **Response:**
+### 1. Upload Image Processing Request
+- **Endpoint:** `POST /api/upload`
+- **Payload:**
   ```json
-  { "requestId": "<unique-id>" }
+  {
+    "products": [
+      {
+        "serialNumber": 1,
+        "productName": "Example Product",
+        "inputUrls": ["https://example.com/image1.jpg"]
+      }
+    ],
+    "webhookUrl": "https://webhook.site/example"
+  }
   ```
-
-### 2. Check Processing Status
-```http
-GET /api/status/:requestId
-```
 - **Response:**
   ```json
   {
-    "status": "IN_PROGRESS",
-    "processedProducts": 5,
-    "totalProducts": 10,
-    "createdAt": "2025-03-31T12:00:00Z",
-    "updatedAt": "2025-03-31T12:30:00Z"
+    "requestId": "123456",
   }
   ```
 
-## Webhook Structure
-The webhook sends a POST request with the following payload:
-```json
-{
-  "requestId": "<id>",
-  "status": "COMPLETED",
-  "successCount": 10,
-  "failedCount": 2,
-  "timestamp": "2025-03-31T12:30:00Z"
-}
-```
+### 2. Get Processing Status
+- **Endpoint:** `GET /status/:requestId`
+- **Response:**
+  ```json
+  {
+    "status": "PROCESSING",
+    "processedProducts": 2,
+    "totalProducts": 6,
+    "createdAt": "2025-03-31T12:00:00Z",
+    "updatedAt": "2025-03-31T12:10:00Z"
+  }
+  ```
 
-## Retry Mechanism
-- Webhook failures are logged and retried.
-- Retries follow an exponential backoff strategy.
+### 3. Download CSV Report
+- **Endpoint:** `GET /download/:requestId`
+- **Response:** CSV file containing:
+  - Serial Number
+  - Product Name
+  - Input Image URLs
+  - Output Image URLs
 
-## Rate Limiting
-- The API is protected using Redis-based rate limiting.
-- Each IP can make up to **5 requests per minute**.
+## System Workflow
+1. **Request Submission:** Users submit a processing request.
+2. **Queue Management:** The request is enqueued for processing.
+3. **Worker Execution:** Workers fetch the request and process images.
+4. **Storage & Completion:** Processed images are stored, and the request status is updated.
+5. **Webhook Triggering:** If provided, a webhook is triggered with the final status.
+6. **Retry Mechanism:** If the webhook fails, it is retried using exponential backoff.
+7. **Status Check & CSV Download:** Users can check the request status and download results.
 
-## Contribution
-Contributions are welcome! Feel free to fork and create a PR.
+## Webhook Retry Mechanism
+- Failed webhooks are added to a **retry queue**.
+- Retries use **exponential backoff** (1s, 2s, 4s, etc.).
+- Max **5 retry attempts** before marking as permanently failed.
+
+## Installation & Setup
+### Prerequisites
+- Node.js (v16+)
+- Redis Server
+- MongoDB
+- Docker
+
+### Steps to Run Locally
+1. **Clone the Repository:**
+   ```sh
+   git clone https://github.com/your-repo/image-processing.git
+   cd image-processing
+   ```
+2. **Install Dependencies:**
+   ```sh
+   npm install
+   ```
+3. **Setup Environment Variables:**
+   Create a `.env` file and configure the following:
+   ```env
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   MONGO_URI=mongodb://localhost:27017/image_processing
+   # GCP Configuration
+  GCP_PROJECT_ID=Your project id
+  GCP_BUCKET_NAME=bucket name
+  GOOGLE_APPLICATION_CREDENTIALS=application credentials
+
+   ```
+1. **Run the Server:**
+   ```sh
+   npm start
+   ```
+
+## Deployment
+### Docker-Based Deployment
+1. **Build the Docker Image:**
+   ```sh
+   docker build -t image-processing .
+   ```
+2. **Run the Docker Container:**
+   ```sh
+   docker-compose up -d
+   ```
+
+## Contributing
+- Fork the repository
+- Create a feature branch
+- Commit your changes
+- Create a pull request
 
 ## License
 This project is licensed under the MIT License.

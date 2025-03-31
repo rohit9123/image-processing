@@ -1,6 +1,5 @@
 import { Worker } from 'bullmq';
-import { Redis } from 'ioredis';
-import axios from 'axios';  // ✅ Added missing import
+import axios from 'axios';
 import ProcessingRequest from '../models/ProcessingRequest.js';
 import { processImage } from '../services/imageService.js';
 import { redisConnection } from '../config/queue.js';
