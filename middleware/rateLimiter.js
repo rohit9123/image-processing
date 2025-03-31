@@ -1,46 +1,78 @@
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
+import { URL } from 'url';
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: process.env.REDIS_PORT || 6379,
-  enableOfflineQueue: false
-});
-
-const RATE_LIMIT = 5; // Max requests allowed
-const WINDOW_SIZE = 60; // Time window in seconds (60 = 1 minute)
-
-export const rateLimiter = async (req, res, next) => {
+// 1. Fixed Redis connection configuration for Upstash
+const createRedisClient = () => {
   try {
-    // Sanitize IPv6 addresses and create unique key
-    const ip = (req.ip || req.connection.remoteAddress).replace(/:/g, '_');
-    const key = `rate_limit:${ip}`;
+    const redisUrl = new URL(process.env.REDIS_URL);
+    
+    return new Redis({
+      host: redisUrl.hostname,
+      port: redisUrl.port,
+      username: redisUrl.username || 'default',
+      password: redisUrl.password,
+      tls: {
+        servername: redisUrl.hostname,
+        rejectUnauthorized: false
+      },
+      maxRetriesPerRequest: null,
+      connectTimeout: 5000
+    });
+  } catch (error) {
+    console.error('Redis connection error:', error);
+    process.exit(1);
+  }
+};
+
+const redis = createRedisClient();
+const RATE_LIMIT = 5;
+const WINDOW_SIZE = 60;
+
+// 2. Fixed transaction result handling
+export const rateLimiter = async (req, res, next) => {
+  const clientIp = (req.ip || req.connection.remoteAddress).replace(/:/g, '_');
+  const key = `rate_limit:${clientIp}`;
+  
+  try {
     const now = Date.now();
-    
-    // Generate unique member for each request
-    const member = `${now}-${randomUUID()}`;
+    const windowStart = now - WINDOW_SIZE * 1000;
 
-    // Atomic transaction
-    const multi = redis.multi()
-      .zadd(key, now, member)            // Add current request
-      .zremrangebyscore(key, 0, now - WINDOW_SIZE * 1000) // Remove old requests
-      .zcard(key)                        // Get current count
-      .expire(key, WINDOW_SIZE);         // Set expiration
+    // 3. Proper transaction handling with error checking
+    const results = await redis
+      .multi()
+      .zadd(key, now, `${now}-${randomUUID()}`)
+      .zremrangebyscore(key, 0, windowStart)
+      .zcard(key)
+      .expire(key, WINDOW_SIZE + 10) // Extra buffer for expiration
+      .exec();
 
-    const [, , requestCount] = await multi.exec();
-    
-    // Set rate limit headers
+    // Handle transaction errors
+    const hasTransactionError = results.some(([err]) => err);
+    if (hasTransactionError) {
+      throw new Error('Redis transaction failed');
+    }
+
+    // 4. Correct result extraction (zcard is 3rd command [index 2])
+    const requestCount = results[2][1]; // [error, result] format
+
+    // 5. Accurate remaining count calculation
+    const remaining = Math.max(0, RATE_LIMIT - requestCount);
+    const resetTime = Math.floor((now + WINDOW_SIZE * 1000) / 1000);
+
     res.set({
       'X-RateLimit-Limit': RATE_LIMIT,
-      'X-RateLimit-Remaining': Math.max(0, RATE_LIMIT - requestCount),
-      'X-RateLimit-Reset': Math.ceil((now + WINDOW_SIZE * 1000) / 1000)
+      'X-RateLimit-Remaining': remaining,
+      'X-RateLimit-Reset': resetTime
     });
 
     if (requestCount > RATE_LIMIT) {
-      console.warn(`Rate limit exceeded for IP: ${ip}`);
-      return res.status(429).json({ 
-        error: 'Too Many Requests', 
-        retryAfter: WINDOW_SIZE 
+      console.log(`Rate limit exceeded for ${clientIp}`);
+      return res.status(429).json({
+        error: 'Too Many Requests',
+        retryAfter: WINDOW_SIZE,
+        limit: RATE_LIMIT,
+        window: WINDOW_SIZE
       });
     }
 
@@ -48,15 +80,19 @@ export const rateLimiter = async (req, res, next) => {
   } catch (error) {
     console.error('Rate limiter error:', error);
     
-    // Fail open in production, closed in development
-    if (process.env.NODE_ENV === 'production') {
-      console.log('Bypassing rate limiter due to Redis failure');
-      next();
-    } else {
-      res.status(500).json({ 
-        error: 'Rate Limiter Service Unavailable',
-        message: process.env.NODE_ENV === 'development' ? error.message : null
+    // 6. Improved fallback strategy
+    const shouldBlock = process.env.NODE_ENV === 'production' 
+      ? Math.random() < 0.8 // Block 80% of traffic during outages
+      : true;
+
+    if (shouldBlock) {
+      res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'Rate limiter unavailable'
       });
+    } else {
+      console.log('Allowing request through degraded limiter');
+      next();
     }
   }
 };
