@@ -1,3 +1,4 @@
+
 # Image Processing System - README
 
 ## Overview
@@ -20,6 +21,7 @@ The Image Processing System is a scalable service that processes image URLs, gen
 - **Logging & Monitoring:** Winston / Bunyan
 
 ## API Endpoints
+
 ### 1. Upload Image Processing Request
 - **Endpoint:** `POST /api/upload`
 - **Payload:**
@@ -38,7 +40,7 @@ The Image Processing System is a scalable service that processes image URLs, gen
 - **Response:**
   ```json
   {
-    "requestId": "123456",
+    "requestId": "123456"
   }
   ```
 
@@ -78,45 +80,59 @@ The Image Processing System is a scalable service that processes image URLs, gen
 - Max **5 retry attempts** before marking as permanently failed.
 
 ## Installation & Setup
+
 ### Prerequisites
-- Node.js (v16+)
+- Docker
 - Redis Server
 - MongoDB
-- Docker
+- GCP (Optional for Cloud Storage)
 
-### Steps to Run Locally
+### Steps to Run Locally with Docker
 1. **Clone the Repository:**
    ```sh
    git clone https://github.com/your-repo/image-processing.git
    cd image-processing
    ```
-2. **Install Dependencies:**
-   ```sh
-   npm install
-   ```
+
+2. **Install Docker Dependencies:**
+   If you haven't already, make sure Docker and Docker Compose are installed on your machine.
+
 3. **Setup Environment Variables:**
-   Create a `.env` file and configure the following:
+   Create a `.env` file in the root directory and configure the following:
    ```env
    REDIS_HOST=localhost
    REDIS_PORT=6379
    MONGO_URI=mongodb://localhost:27017/image_processing
-   # GCP Configuration
-  GCP_PROJECT_ID=Your project id
-  GCP_BUCKET_NAME=bucket name
-  GOOGLE_APPLICATION_CREDENTIALS=application credentials
+   # GCP Configuration (if applicable)
+   GCP_PROJECT_ID=Your project id
+   GCP_BUCKET_NAME=Your bucket name
+   GOOGLE_APPLICATION_CREDENTIALS=Path to application credentials
+   ```
 
-   ```
-1. **Run the Server:**
+4. **Build the Docker Image:**
    ```sh
-   npm start
+   docker-compose build
    ```
+
+5. **Run the Docker Containers:**
+   ```sh
+   docker-compose up -d
+   ```
+
+   This command starts the application, including all the required services (Node.js backend, Redis, MongoDB, and any other services).
+
+6. **Verify the Application:**
+   - The application should now be running on `http://localhost:3000`.
+   - You can interact with the API using tools like Postman or curl.
 
 ## Deployment
+
 ### Docker-Based Deployment
 1. **Build the Docker Image:**
    ```sh
    docker build -t image-processing .
    ```
+
 2. **Run the Docker Container:**
    ```sh
    docker-compose up -d
@@ -130,4 +146,3 @@ The Image Processing System is a scalable service that processes image URLs, gen
 
 ## License
 This project is licensed under the MIT License.
-
