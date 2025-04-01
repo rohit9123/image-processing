@@ -1,6 +1,7 @@
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
 import { URL } from 'url';
+import rateLimit from 'express-rate-limit';
 
 // 1. Fixed Redis connection configuration for Upstash
 const createRedisClient = () => {
@@ -65,6 +66,7 @@ export const rateLimiter = async (req, res, next) => {
       'X-RateLimit-Remaining': remaining,
       'X-RateLimit-Reset': resetTime
     });
+     console.log(requestCount,rateLimit)
 
     if (requestCount > RATE_LIMIT) {
       console.log(`Rate limit exceeded for ${clientIp}`);
