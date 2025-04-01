@@ -20,16 +20,21 @@ RUN npm run build --if-present
 # Stage 2: Production image
 FROM node:18-alpine
 
-WORKDIR /app
-
-# Create non-root user and required directories first
+# Create app user and directories with proper permissions
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup && \
-    mkdir -p /app/config /app/uploads /tmp/uploads && \
-    chown -R appuser:appgroup /app && \
-    chmod -R 755 /tmp/uploads
+    mkdir -p /app/config /tmp/uploads && \
+    chown -R appuser:appgroup /app /tmp/uploads && \
+    chmod 755 /app/config && \
+    chmod 1777 /tmp/uploads
 
-# Copy production files with proper permissions
+WORKDIR /app
+
+# Copy credentials with correct permissions
+COPY --from=builder --chown=appuser:appgroup /usr/src/app/config/gcp-key.json ./config/
+RUN chmod 644 /app/config/gcp-key.json
+
+# Copy application files
 COPY --from=builder --chown=appuser:appgroup /usr/src/app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:appgroup /usr/src/app/package*.json ./
 COPY --from=builder --chown=appuser:appgroup /usr/src/app/. .
@@ -40,12 +45,12 @@ USER appuser
 ENV NODE_ENV=production \
     PORT=8080 \
     TZ=UTC \
-    GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
+    GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json \
+    GCP_BUCKET_NAME=imageprocessingrohitkumar
 
 EXPOSE 8080
 
-# Improved health check with startup delay
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 CMD ["node", "server.js"]
