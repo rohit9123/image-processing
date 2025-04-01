@@ -18,7 +18,7 @@ services:
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
       - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/config/gcp-key.json
     volumes:
-      - ./config:/usr/src/app/config  # Corrected path
+      - ./config:/usr/src/app/config
     networks:
       - app-network
 
@@ -37,7 +37,7 @@ services:
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
       - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/config/gcp-key.json
     volumes:
-      - ./config:/usr/src/app/config  # Corrected path
+      - ./config:/usr/src/app/config
     networks:
       - app-network
 
