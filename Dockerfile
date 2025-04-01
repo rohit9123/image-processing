@@ -22,15 +22,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
-
-
-# Create non-root user and required directories
+# Create non-root user and required directories first
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup && \
     mkdir -p /app/config /app/uploads /tmp/uploads && \
-    chown -R appuser:appgroup /app /tmp/uploads && \
+    chown -R appuser:appgroup /app && \
     chmod -R 755 /tmp/uploads
 
 # Copy production files with proper permissions
@@ -47,7 +43,9 @@ ENV NODE_ENV=production \
     GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
 
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+
+# Improved health check with startup delay
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-CMD ["node", "--experimental-specifier-resolution=node", "server.js"]
+CMD ["node", "server.js"]
