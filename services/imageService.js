@@ -3,38 +3,64 @@ import axios from 'axios';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 dotenv.config();
 
-
-
 // Initialize GCP Storage with validation
-const storage = new Storage({
-  projectId: process.env.GCP_PROJECT_ID,
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
-});
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Verify bucket exists
-const bucketName = process.env.GCP_BUCKET_NAME;
-if (!bucketName) throw new Error('GCP_BUCKET_NAME environment variable not set');
-
-const bucket = storage.bucket(bucketName);
-
-// Add bucket existence check
-const verifyBucket = async () => {
+// Configure GCP Storage with validation
+const configureGCP = () => {
   try {
-    const [exists] = await bucket.exists();
-    if (!exists) throw new Error(`Bucket ${bucketName} does not exist`);
-    console.log(`✅ Using GCS bucket: ${bucketName}`);
+    // Verify credentials path
+    const credentialsPath = path.resolve(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
+    const storage = new Storage({
+      projectId: process.env.GCP_PROJECT_ID,
+      keyFilename: credentialsPath
+    });
+
+    const bucketName = process.env.GCP_BUCKET_NAME;
+    if (!bucketName) throw new Error('GCP_BUCKET_NAME environment variable not set');
+
+    const bucket = storage.bucket(bucketName);
+
+    // Add connection test
+    const verifyConnection = async () => {
+      try {
+        const [exists] = await bucket.exists();
+        if (!exists) throw new Error(`Bucket ${bucketName} not found`);
+        console.log(`✅ Connected to GCS bucket: ${bucketName}`);
+        return true;
+      } catch (error) {
+        console.error('❌ GCP Connection Error:', error.message);
+        console.log('Troubleshooting Steps:');
+        console.log('1. Verify GCP_PROJECT_ID matches credentials');
+        console.log('2. Check bucket exists: gsutil ls -b gs://' + bucketName);
+        console.log('3. Validate credentials file permissions');
+        process.exit(1);
+      }
+    };
+
+    return { storage, bucket, verifyConnection };
+
   } catch (error) {
-    console.error('❌ GCP Bucket verification failed:', error);
+    console.error('❌ GCP Configuration Error:', error.message);
     process.exit(1);
   }
 };
 
-verifyBucket();
+const { bucket, verifyConnection } = configureGCP();
+await verifyConnection();
 
 export const processImage = async (url, requestId) => {
+
   try {
+    console.log("GOOGLE_APPLICATION_CREDENTIALS:", process.env.GOOGLE_APPLICATION_CREDENTIALS);
+    console.log("GCP_BUCKET_NAME:", process.env.GCP_BUCKET_NAME);
+
     // Validate URL
     const urlObj = new URL(url);
     if (!['http:', 'https:'].includes(urlObj.protocol)) {
@@ -59,7 +85,7 @@ export const processImage = async (url, requestId) => {
 
     // Upload to GCS
     const file = bucket.file(fileName);
-    
+
     await file.save(processedBuffer, {
       metadata: {
         contentType: 'image/jpeg',
@@ -68,8 +94,8 @@ export const processImage = async (url, requestId) => {
     });
 
     await file.makePublic();
-    
-    return `https://storage.googleapis.com/${bucketName}/${fileName}`;
+
+    return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 
   } catch (error) {
     console.error(`Image processing failed for ${url}:`, error);

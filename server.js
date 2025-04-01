@@ -5,9 +5,11 @@ import connectDB from './config/db.js';
 import swaggerUI from 'swagger-ui-express';
 import YAML from 'yamljs';
 import apiRoutes from './routes/api.js';
-import fs from 'fs';
+import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { mkdir } from 'fs/promises';
+
 
 // Initialize core services
 connectDB();
@@ -15,36 +17,46 @@ connectDB();
 const app = express();
 const swaggerDoc = YAML.load('./swagger.yaml');
 
-// Secure GCP credentials handling
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-const setupGCPCredentials = () => {
+// Modify your GCP setup function
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function setupGCPCredentials() {
   try {
+    const configDir = path.join(__dirname, 'config');
+    const keyPath = path.join(configDir, 'gcp-key.json');
+
     if (!process.env.GCP_KEY_BASE64) {
       throw new Error('GCP_KEY_BASE64 environment variable is missing');
     }
 
-    const gcpKey = Buffer.from(process.env.GCP_KEY_BASE64, 'base64').toString('utf-8');
-    const keyPath = path.resolve('/app/config/gcp-key.json');  // Ensure absolute path inside container
+    // Create the directory if it doesn't exist
+    await fs.mkdir(configDir, { recursive: true, mode: 0o755 });
 
-    // Ensure `config` directory exists
-    fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+    const keyContent = Buffer.from(process.env.GCP_KEY_BASE64, 'base64').toString();
 
-    // Write GCP credentials to file
-    fs.writeFileSync(keyPath, gcpKey, { encoding: 'utf-8' });
+    // Log the key content (first 100 characters) to ensure it's decoded correctly
+    // console.log('Decoded GCP credentials:', keyContent.slice(0, 100));
 
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = keyPath;
-    
-    console.log('✅ GCP credentials initialized at:', keyPath);
-    console.log('📂 File Exists:', fs.existsSync(keyPath));  // Debugging
+    // Try writing the file to the specified path
+    await fs.writeFile(keyPath, keyContent, { mode: 0o600 });
+
+    // Verify if the file is created
+    const stats = await fs.stat(keyPath);
+    if (!stats.isFile()) {
+      throw new Error('Failed to create credentials file');
+    }
+
+    console.log('GCP credentials verified at:', keyPath);
+
   } catch (error) {
-    console.error('❌ GCP credential setup failed:', error.message);
+    console.error('Credential setup failed:', error.message);
     process.exit(1);
   }
-};
+}
 
-setupGCPCredentials();
+
+await setupGCPCredentials();
 
 
 // setupGCPCredentials();
@@ -62,7 +74,6 @@ app.use(fileUpload({
   abortOnLimit: true
 }));
 
-// Security headers middleware
 app.use((req, res, next) => {
   res.set({
     'X-Content-Type-Options': 'nosniff',
@@ -97,3 +108,4 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0' , () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
+// Security headers middleware

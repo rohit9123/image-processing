@@ -3,34 +3,47 @@ FROM node:18-alpine AS builder
 
 WORKDIR /usr/src/app
 
-# Install build tools
-RUN apk add --no-cache python3 build-base git
+# Install build dependencies
+RUN apk add --no-cache \
+    python3 \
+    build-base \
+    git
 
-# Install dependencies
+# Install node modules
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 
-# Copy and build source
+# Copy and build source code
 COPY . .
 RUN npm run build --if-present
 
 # Stage 2: Production image
 FROM node:18-alpine
 
-ENV PORT=8080
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Create app user and set permissions before copying files
+# Create non-root user and required directories
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup && \
-    chown -R appuser:appgroup /usr/src/app
+    mkdir -p /app/config /app/uploads /tmp/uploads && \
+    chown -R appuser:appgroup /app && \
+    chmod -R 755 /app
 
-# Copy from builder with proper permissions
-COPY --chown=appuser:appgroup --from=builder /usr/src/app/node_modules ./node_modules
-COPY --chown=appuser:appgroup --from=builder /usr/src/app/package*.json ./
-COPY --chown=appuser:appgroup --from=builder /usr/src/app/. .
+# Copy production files with proper permissions
+COPY --from=builder --chown=appuser:appgroup /usr/src/app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /usr/src/app/package*.json ./
+COPY --from=builder --chown=appuser:appgroup /usr/src/app/. .
 
+# Runtime configuration
 USER appuser
 
+ENV NODE_ENV=production \
+    PORT=8080 \
+    TZ=UTC \
+    GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
+
 EXPOSE 8080
-CMD ["node", "--experimental-specifier-resolution=node", "server.js"]
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["node", "server.js"]
