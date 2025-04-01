@@ -31,5 +31,5 @@ COPY --chown=appuser:appgroup --from=builder /usr/src/app/. .
 
 USER appuser
 
-EXPOSE 3000
+EXPOSE 8080
 CMD ["node", "--experimental-specifier-resolution=node", "server.js"]
