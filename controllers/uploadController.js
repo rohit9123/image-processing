@@ -49,7 +49,7 @@ export const uploadCSV = async (req, res) => {
       .on("end", async () => {
         try {
           const newRequest = await ProcessingRequest.create({
-            webhookUrl: req.body.webhookUrl,
+            // webhookUrl: req.body.webhookUrl  if want to use
             products: results,
           });
 

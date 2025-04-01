@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   web:
@@ -13,13 +13,12 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URL=${REDIS_URL}  # Using Upstash Redis
+      - REDIS_URL=${REDIS_URL}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
     volumes:
-      - ./config/gcp-key.json:/app/config/gcp-key.json
-      - outputs:/app/outputs
+      - ./config:/app/config  # Ensures `/app/config/gcp-key.json` is accessible
     networks:
       - app-network
 
@@ -33,13 +32,12 @@ services:
     environment:
       - NODE_ENV=production
       - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URL=${REDIS_URL}  # Using Upstash Redis
+      - REDIS_URL=${REDIS_URL}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
     volumes:
-      - ./config/gcp-key.json:/app/config/gcp-key.json
-      - outputs:/app/outputs
+      - ./config:/app/config  # Ensure the worker also gets `gcp-key.json`
     networks:
       - app-network
 
@@ -55,9 +53,6 @@ services:
       retries: 3
     networks:
       - app-network
-
-volumes:
-  outputs:
 
 networks:
   app-network:
