@@ -1,3 +1,4 @@
+import cors from 'cors';
 import 'dotenv/config';
 import express from 'express';
 import fileUpload from 'express-fileupload';
@@ -8,8 +9,6 @@ import apiRoutes from './routes/api.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { mkdir } from 'fs/promises';
-
 
 // Initialize core services
 connectDB();
@@ -17,8 +16,13 @@ connectDB();
 const app = express();
 const swaggerDoc = YAML.load('./swagger.yaml');
 
+// Enable CORS
+app.use(cors({
+  origin: '*', // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
-// Modify your GCP setup function
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function setupGCPCredentials() {
@@ -30,38 +34,19 @@ async function setupGCPCredentials() {
       throw new Error('GCP_KEY_BASE64 environment variable is missing');
     }
 
-    // Create the directory if it doesn't exist
     await fs.mkdir(configDir, { recursive: true, mode: 0o755 });
-
     const keyContent = Buffer.from(process.env.GCP_KEY_BASE64, 'base64').toString();
-
-    // Log the key content (first 100 characters) to ensure it's decoded correctly
-    // console.log('Decoded GCP credentials:', keyContent.slice(0, 100));
-
-    // Try writing the file to the specified path
     await fs.writeFile(keyPath, keyContent, { mode: 0o600 });
 
-    // Verify if the file is created
-    const stats = await fs.stat(keyPath);
-    if (!stats.isFile()) {
-      throw new Error('Failed to create credentials file');
-    }
-
     console.log('GCP credentials verified at:', keyPath);
-
   } catch (error) {
     console.error('Credential setup failed:', error.message);
     process.exit(1);
   }
 }
 
-
 await setupGCPCredentials();
 
-
-// setupGCPCredentials();
-
-// Enhanced file upload security
 app.use(fileUpload({
   useTempFiles: true,
   tempFileDir: '/tmp/uploads',
@@ -87,25 +72,7 @@ app.use((req, res, next) => {
 app.use('/api', apiRoutes);
 app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerDoc));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    redis: redis.status === 'ready' ? 'connected' : 'disconnected'
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
-  });
-});
-
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0' , () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
-// Security headers middleware
