@@ -17,6 +17,7 @@ RUN npm run build --if-present
 # Stage 2: Production image
 FROM node:18-alpine
 
+ENV PORT=8080
 WORKDIR /usr/src/app
 
 # Create app user and set permissions before copying files
