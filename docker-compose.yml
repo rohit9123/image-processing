@@ -16,10 +16,9 @@ services:
       - REDIS_URL=${REDIS_URL}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
-      - GCP_KEY_BASE64=${GCP_KEY_BASE64}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/config/gcp-key.json
     volumes:
-      - ./config:/app/config  # Ensures `/app/config/gcp-key.json` is accessible
+      - ./config:/usr/src/app/config  # Corrected path
     networks:
       - app-network
 
@@ -36,10 +35,9 @@ services:
       - REDIS_URL=${REDIS_URL}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME}
-      - GCP_KEY_BASE64=${GCP_KEY_BASE64}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/gcp-key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/config/gcp-key.json
     volumes:
-      - ./config:/app/config  # Ensure the worker also gets `gcp-key.json`
+      - ./config:/usr/src/app/config  # Corrected path
     networks:
       - app-network
 
