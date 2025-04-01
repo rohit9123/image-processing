@@ -26,8 +26,8 @@ WORKDIR /app
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup && \
     mkdir -p /app/config /app/uploads /tmp/uploads && \
-    chown -R appuser:appgroup /app && \
-    chmod -R 755 /app
+    chown -R appuser:appgroup /app /tmp/uploads && \
+    chmod -R 755 /tmp/uploads
 
 # Copy production files with proper permissions
 COPY --from=builder --chown=appuser:appgroup /usr/src/app/node_modules ./node_modules
