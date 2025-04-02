@@ -27,6 +27,7 @@ COPY --from=builder --chown=appuser:appgroup /usr/src/app/node_modules ./node_mo
 COPY --from=builder --chown=appuser:appgroup /usr/src/app ./
 
 # Application port
-EXPOSE 8080
+ENV PORT=8080
+EXPOSE $PORT
 
 CMD ["node", "--experimental-specifier-resolution=node", "server.js"]
