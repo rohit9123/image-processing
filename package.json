@@ -4,7 +4,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "pm2-runtime ecosystem.config.cjs",
+    "start:web": "node server.js",
+    "start:worker": "node workers/imageProcessor.js",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

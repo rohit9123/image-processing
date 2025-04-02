@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
-
+console.log(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 // Initialize GCP Storage with validation
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,11 +15,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configureGCP = () => {
   try {
     // Verify credentials path
-    const credentialsPath = path.resolve(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS);
+    const keyPath = path.resolve(__dirname, "../config/gcp-key.json");
+
 
     const storage = new Storage({
       projectId: process.env.GCP_PROJECT_ID,
-      keyFilename: credentialsPath
+      keyFilename:  keyPath
     });
 
     const bucketName = process.env.GCP_BUCKET_NAME;
