@@ -4,7 +4,7 @@ import ProcessingRequest from '../models/ProcessingRequest.js';
 import { processImage } from '../services/imageService.js';
 import { redisConnection } from '../config/queue.js';
 import connectDB from '../config/db.js';
-import express from 'express';
+
 
 await connectDB();
 
@@ -13,18 +13,6 @@ console.log("🔄 Initializing worker...");
 
 // After worker creation
 console.log(`🚀 Worker started for queue "image-processing"`);
-const app = express();
-const PORT = process.env.PORT || 8081;
-
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'WORKER_OK' });
-});
-
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`⚙️ Worker health server running on port ${PORT}`);
-});
-
 
 const worker = new Worker('image-processing', async job => {
   const { requestId } = job.data;
